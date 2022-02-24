@@ -1,0 +1,515 @@
+---
+title: "Final project"
+author: "Stephen Li"
+date: "4/10/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+Seed1data <- read.csv("Training Data for Ag Project.csv")
+library(dplyr)
+
+Seed1data<- Seed1data%>% mutate(Temp=if_else(GrowingSeason==2003,Temp_03,if_else(GrowingSeason==2004,Temp_04,if_else(GrowingSeason ==2005,Temp_05,if_else(GrowingSeason==2006,Temp_06,
+                                                                                                                                                        if_else(GrowingSeason ==2007,Temp_07,if_else(GrowingSeason==2008,Temp_08,
+                                                                                                                                                                                                   if_else(GrowingSeason==2009,Temp_09,NULL,NULL),NULL),NULL),NULL),NULL),NULL),NULL),Prec=if_else(GrowingSeason==2003,Prec_03,if_else(GrowingSeason==2004,Prec_04,if_else(GrowingSeason ==2005,Prec_05,if_else(GrowingSeason==2006,Prec_06,
+                                                                                                                                                        if_else(GrowingSeason ==2007,Prec_07,if_else(GrowingSeason==2008,Prec_08,
+                                                                                                                                                                                                   if_else(GrowingSeason==2009,Prec_09,NULL,NULL),NULL),NULL),NULL),NULL),NULL),NULL),Rad=if_else(GrowingSeason==2003,Rad_03,if_else(GrowingSeason==2004,Rad_04,if_else(GrowingSeason ==2005,Rad_05,if_else(GrowingSeason==2006,Rad_06,
+                                                                                                                                                        if_else(GrowingSeason ==2007,Rad_07,if_else(GrowingSeason==2008,Rad_08,
+                                                                                                                                                                                                   if_else(GrowingSeason==2009,Rad_09,NULL,NULL),NULL),NULL),NULL),NULL),NULL),NULL))
+
+
+```
+
+```{r}
+#keep variables 
+keepvariable = c('Latitude','Longitude','Probability','RelativeMaturity25','Prob_IRR','Soil_Type','Temp','Median_Temp','Prec','Median_Prec','Rad','Median_Rad','Density','Acres','PH1','AWC1','Clay1','Silt1','Sand1','Sand2','Silt2','Clay2','PH2','CEC','CE','Variety','Variety_Yield')
+
+predictors = c('Latitude','Longitude','Probability','RelativeMaturity25','Prob_IRR','Soil_Type','Temp','Median_Temp','Prec','Median_Prec','Rad','Median_Rad','Density','Acres','PH1','AWC1','Clay1','Silt1','Sand1','Sand2','Silt2','Clay2','PH2','CEC','CE')
+
+target = c('Variety_Yield')
+```
+```{r}
+data = Seed1data[keepvariable]
+
+data = data[complete.cases(data),]
+```
+
+```{r}
+data$Soil_Type = as.factor(data$Soil_Type)
+data$Variety = as.factor(data$Variety)
+
+```
+
+```{r}
+#Variety quantity 
+Variety.count= data%>%group_by(Variety)%>%dplyr::summarise(count = n())
+# variety 饼图
+Variety.count = Variety.count[order(Variety.count$count,decreasing = T),]
+
+
+```
+
+```{r}
+# split data into sufficient and insufficient 
+MinN = 100
+
+
+
+VarietyData = split(data, data$Variety)
+
+SufDataVarieties = c()
+
+insufDataVarieties = c()
+
+for(i in seq(1,length(unique(data$Variety)))){
+   if((dim(VarietyData[[i]])[1])>MinN){
+      SufDataVarieties = c(SufDataVarieties,(as.character(VarietyData[[i]][1,"Variety"])))
+   } else {
+      insufDataVarieties = c(insufDataVarieties, (as.character(VarietyData[[i]][1,"Variety"])))
+   }
+}
+
+
+
+InSufVarietyData = data.frame()
+
+
+for (i in 1:length(insufDataVarieties)) {
+  InSufVarietyData = rbind(InSufVarietyData, data[which(data$Variety == insufDataVarieties[i]),])
+}
+
+countinsufrows = 0
+
+for (i in 1:length(insufDataVarieties)) {
+  countinsufrows = countinsufrows + dim(data[which(data$Variety == insufDataVarieties[i]),])[1]
+}
+
+
+countsufrows = 0
+
+for (i in 1:length(SufDataVarieties)) {
+  countsufrows = countsufrows + dim(data[which(data$Variety == SufDataVarieties[i]),])[1]
+}
+
+SufVarietyData = data.frame()
+
+for (i in 1:length(SufDataVarieties)) {
+  SufVarietyData = rbind(SufVarietyData, data[which(data$Variety == SufDataVarieties[i]),])
+}
+
+SplitData = split(SufVarietyData, SufVarietyData$Variety)
+
+count = 0
+
+
+for (i in 1:length(unique(data$Variety))) {
+
+   if(length(SplitData[[i]]$Variety) != 0) {count = count + dim(SplitData[[i]])[1]
+
+   }
+  
+}
+
+```
+
+```{r}
+#load evaluation data
+Evaluatedata<- read.csv("Evaluation dataset for Ag Project.csv")
+```
+
+
+```{r}
+#define some colors 
+col1 = "#011f4b"
+
+col2 = "#6497b1"
+
+col3 = "#b3cde0"
+
+col4 = "#CC0000"
+```
+
+
+
+```{r}
+#plot the experimental locations at the map 
+library(ggplot2)
+library(ggmap)
+ 
+library(sp)
+ 
+library(maptools)
+ 
+library(maps)
+mp<-NULL #A null map 
+ 
+mapworld<-borders("state",colour = col2,fill="white") # sta
+ 
+mp<-ggplot()+mapworld
+ 
+
+ 
+mp2<-mp+geom_point(aes(x=Seed1data$Longitude,y=Seed1data$Latitude),color="darkorange")+scale_size(range=c(1,1)) + geom_point(aes(x=Evaluatedata$Longitude,y=Evaluatedata$Latitude),color=col1)+scale_size(range=c(1,1))
+ 
+
+mp3<-mp2+theme(legend.position = "none") #
+mp3
+```
+```{r}
+#cluster data to find out which cluster target location belongs to and apply the weather of that cluster to target location
+
+# use only longitude and latitude to custer
+clusterdata = Seed1data[,c('Location','Latitude','Longitude','Rad','Temp','Prec')]
+
+Clusterdata = rbind(clusterdata,c(Evaluatedata$Location,Evaluatedata$Latitude,Evaluatedata$Longitude,1,1))
+
+
+```
+```{r}
+# Use K-means to cluster the locations
+set.seed(4)
+
+km.out=kmeans(Clusterdata[,c('Latitude','Longitude')],8,nstart=20)
+
+km.out
+
+graph1 = ggplot(Clusterdata,aes(x = Longitude, y= Latitude,colour = km.out$cluster )) + geom_point(alpha =0.5)
+graph1 
+
+```
+```{r}
+#计算每个cluster 中 Temp,Rad, Prec 的个数
+Clusterdata.result = cbind(Clusterdata,cluster = km.out$cluster)
+library(dplyr)
+Cluster.evaluation<-Clusterdata.result%>%group_by(cluster,Rad,Temp,Prec)%>%dplyr::summarise(count = n())
+Cluster.target=Cluster.evaluation[Cluster.evaluation[,'cluster'] ==2,]
+dim(Cluster.target)
+
+# 随机选出500个 作为可能的天气组合
+set.seed(88)
+weather.sample = sample(1:nrow(Cluster.target),1000)
+weather= Cluster.target[weather.sample,]
+```
+
+```{r}
+#total possible weather conditions
+total.condition<-Clusterdata%>%group_by(Rad,Temp,Prec)%>%dplyr::summarise(count = n())
+dim(total.condition)
+```
+```{r}
+#correlation matrix 
+library(ggplot2)
+library(GGally)
+ggcorr(data, hjust = 1)
+
+```
+
+```{r}
+ggplot(gather(data), aes(value)) + 
+    geom_histogram(bins = 10) + 
+    facet_wrap(~key, scales = 'free_x')
+```
+
+predictive analysis
+
+split data based on variety
+1. linear regression
+```{r}
+result = list()
+maefun <- function(pred, obs) mean(abs(pred - obs))
+msefun <- function(pred, obs) mean((pred - obs)^2)
+nmsefun <- function(pred, obs) mean((pred - obs)^2)/mean((mean(obs) - obs)^2)
+rmsefun <- function(pred, obs) (sum((pred - obs)^2)/length(pred))^0.5
+n=1
+for (i in SufDataVarieties){
+   target.data = SufVarietyData[SufVarietyData$Variety==i,]
+   target.data = subset(target.data, select = -Variety)
+   lm.fit =lm(Variety_Yield~.-CE -Acres ,data = target.data)
+   set.seed(n)
+   test = sample(1:nrow(target.data),0.2*nrow(target.data))
+   test.data = target.data[test,]
+   predict.result = predict(lm.fit,newdata = test.data)
+   result[[i]] =c(maefun(predict.result,test.data$Variety_Yield),
+                msefun(predict.result,test.data$Variety_Yield),
+                nmsefun(predict.result,test.data$Variety_Yield),
+                rmsefun(predict.result, test.data$Variety_Yield))
+   n = n+1
+}
+```
+
+
+
+```{r}
+result.1= as.data.frame(result)
+result.1
+error.lr=list()
+error.lr[['MAE']] = sum(result.1[1,])/length(result.1[1,])
+error.lr[['MSE']] = sum(result.1[2,])/length(result.1[2,])
+error.lr[['NMSE']] = sum(result.1[3,])/length(result.1[3,])
+error.lr[['RMSE']] = sum(result.1[4,])/length(result.1[4,])
+error.lr
+```
+2. Tress
+```{r}
+library (tree)
+library(rpart)
+```
+```{r}
+
+n = 100
+result.tree = list()
+for (i in SufDataVarieties){
+   set.seed(n)
+   target.data = SufVarietyData[SufVarietyData$Variety==i,]
+   target.data = subset(target.data, select = -Variety)
+   train= sample(1:nrow(target.data),0.8*nrow(target.data))
+   target.train=target.data[train,]
+   tree.fit = rpart(Variety_Yield ~ ., data = target.train)
+   ptree.fit=prune(tree.fit,cp=
+                      tree.fit$cptable[which.min(tree.fit$cptable[,"xerror"]),"CP"])
+   test.data = target.data[-train,]
+   yhat.tree = predict(ptree.fit, newdata = test.data)
+   
+   
+   result.tree[[i]] =c(maefun(yhat.tree,test.data$Variety_Yield),
+                msefun(yhat.tree,test.data$Variety_Yield),
+                nmsefun(yhat.tree,test.data$Variety_Yield),
+                rmsefun(yhat.tree,test.data$Variety_Yield))
+   n = n+1
+}
+```
+```{r}
+result.tree.df = as.data.frame(result.tree)
+error.tree=list()
+error.tree[['MAE']] = sum(result.tree.df[1,])/length(result.tree.df[1,])
+error.tree[['MSE']] = sum(result.tree.df[2,])/length(result.tree.df[2,])
+error.tree[['NMSE']] = sum(result.tree.df[3,])/length(result.tree.df[3,])
+error.tree[['RMSE']] = sum(result.tree.df[4,])/length(result.tree.df[4,])
+error.tree
+```
+
+
+
+2. Random Forest
+```{r}
+library(randomForest)
+```
+
+```{r}
+n=100
+result.rf = list()
+for (i in SufDataVarieties){
+   set.seed(n)
+   target.data = SufVarietyData[SufVarietyData$Variety==i,]
+   target.data = subset(target.data, select = -Variety)
+   train= sample(1:nrow(target.data),0.8*nrow(target.data))
+   random.fit = randomForest(Variety_Yield~., data=target.data, subset=train,
+                             mtry=8,
+                             importance=TRUE)
+   test.data = target.data[-train,]
+   yhat.ran = predict(random.fit, newdata = test.data)
+
+
+   result.rf[[i]] =c(maefun(yhat.ran,test.data$Variety_Yield),
+                msefun(yhat.ran,test.data$Variety_Yield),
+                nmsefun(yhat.ran,test.data$Variety_Yield),
+                rmsefun(yhat.ran,test.data$Variety_Yield))
+   n = n+1
+}
+```
+```{r}
+result.rf.df = as.data.frame(result.rf)
+error.rf=list()
+error.rf[['MAE']] = sum(result.rf.df[1,])/length(result.rf.df[1,])
+error.rf[['MSE']] = sum(result.rf.df[2,])/length(result.rf.df[2,])
+error.rf[['NMSE']] = sum(result.rf.df[3,])/length(result.rf.df[3,])
+error.rf[['RMSE']] = sum(result.rf.df[4,])/length(result.rf.df[4,])
+error.rf
+```
+3. Boosted Tree 
+```{r}
+library(caret)
+library(gbm)
+n=100
+result.boost = list()
+for (i in SufDataVarieties){
+   set.seed(n)
+   target.data = SufVarietyData[SufVarietyData$Variety==i,]
+   target.data = subset(target.data, select = -Variety)
+
+   train= sample(1:nrow(target.data),0.8*nrow(target.data))
+   target.train = target.data[train,]
+   
+   boost.fit <- gbm(Variety_Yield ~ . , data = target.train, distribution = "gaussian", n.trees=50,interaction.depth=3,shrinkage=0.2,verbose=F)
+   
+   test.data = target.data[-train,]
+   yhat.boot = predict(boost.fit, newdata = test.data,n.trees=50 )
+
+   result.boost[[i]] =c(maefun(yhat.boot,test.data$Variety_Yield),
+                msefun(yhat.boot,test.data$Variety_Yield),
+                nmsefun(yhat.boot,test.data$Variety_Yield),
+                rmsefun(yhat.boot,test.data$Variety_Yield))
+   
+}
+result.boost.df = as.data.frame(result.boost)
+result.boost.df
+error.boost[['MAE']] = sum(result.boost.df[1,])/length(result.boost.df[1,])
+error.boost[['MSE']] = sum(result.boost.df[2,])/length(result.boost.df[2,])
+error.boost[['NMSE']] = sum(result.boost.df[3,])/length(result.boost.df[3,])
+error.boost[['RMSE']] = sum(result.boost.df[4,])/length(result.boost.df[4,])
+error.boost
+```
+```{r}
+#  different shrinkage values on the x-axis and the corresponding training set MSE on the y-axis
+pows = seq(-10, -0.2, by = 0.1)
+lambdas = 10^pows
+train.err = rep(NA, length(lambdas))
+for (i in 1:length(lambdas)) {
+    boost.hitters = gbm(Variety_Yield ~ ., data = target.train, distribution = "gaussian", n.trees = 50,interaction.depth=3, shrinkage = lambdas[i])
+    pred.test = predict(boost.hitters, test.data, n.trees = 5000)
+    train.err[i] = mean((pred.test - test.data$Variety_Yield)^2)
+}
+plot(lambdas, train.err, type = "b", xlab = "Shrinkage values", ylab = "Testing MSE")
+```
+
+Nuetural network
+```{r}
+library(neuralnet)
+library(nnet)
+library(caret)
+n=100
+result.nn = list()
+
+#Min-Max normalization
+numerical=c('Latitude','Longitude','Probability','RelativeMaturity25','Prob_IRR','Temp','Median_Temp','Prec','Median_Prec','Rad','Median_Rad','Density','Acres','PH1','AWC1','Clay1','Silt1','Sand1','Sand2','Silt2','Clay2','PH2','CEC','CE','Variety','Variety_Yield')
+
+
+
+#loop
+for (i in SufDataVarieties){
+   set.seed(n)
+   target.data = SufVarietyData[SufVarietyData$Variety==i,] 
+   Yield=target.data[,'Variety_Yield']
+   Yieldmax=range(target.data['Variety_Yield'])[2]
+   Yieldmin=range(target.data['Variety_Yield'])[1]
+   norm.target.data = target.data
+   norm.values=preProcess(norm.target.data[,numerical],method='range')
+   norm.target.data[,numerical]=predict(norm.values,target.data[,numerical])
+   #create dummy variables 
+   norm.target.data = subset(norm.target.data, select = -Variety)
+   dummies <- dummyVars(Variety_Yield ~ ., data = norm.target.data)
+   new_variable = predict(dummies, newdata = norm.target.data)
+
+   norm.target.data = data.frame(new_variable,'Variety_Yield'=norm.target.data[,'Variety_Yield'])
+   
+   train= sample(1:nrow(target.data),0.8*nrow(target.data))
+   target.train = norm.target.data[train,]
+   nn <- neuralnet(Variety_Yield ~ ., data = target.train, hidden =c(8,8,8) )
+   test.data = norm.target.data[-train,]
+   
+   pred.test=compute(nn,subset(test.data,select = -c(Variety_Yield)))
+   yhat.nn=pred.test$net.result*(Yieldmax-Yieldmin)+Yieldmin
+   y.nn = target.data[-train,]$Variety_Yield
+   x = c(maefun(yhat.nn,y.nn),
+                msefun(yhat.nn,y.nn),
+                nmsefun(yhat.nn,y.nn),
+                rmsefun(yhat.nn,y.nn))
+   x
+   result.nn[[i]] =c(maefun(yhat.nn,y.nn),
+                msefun(yhat.nn,y.nn),
+                nmsefun(yhat.nn,y.nn),
+                rmsefun(yhat.nn,y.nn))
+   n = n+1
+}
+result.nn.df = as.data.frame(result.nn)
+error.nn=list()
+error.nn[['MAE']] = sum(result.nn.df[1,])/length(result.nn.df[1,])
+error.nn[['MSE']] = sum(result.nn.df[2,])/length(result.nn.df[2,])
+error.nn[['NMSE']] = sum(result.nn.df[3,])/length(result.nn.df[3,])
+error.nn[['RMSE']] = sum(result.nn.df[4,])/length(result.nn.df[4,])
+error.nn
+```
+
+
+Use regression tree as prediction tool 
+```{r}
+
+evaluation_data = as.data.frame(matrix(nrow = 1000,ncol = 3))
+names(evaluation_data) =c('Temp','Prec','Rad')
+evaluation_data$Temp=weather$Temp
+evaluation_data$Prec=weather$Prec
+evaluation_data$Rad=weather$Rad
+evaluation_data = cbind(evaluation_data, Evaluatedata)
+evaluation_data = evaluation_data[,predictors]
+evaluation_data$Soil_Type = factor(evaluation_data$Soil_Type,levels=levels(data$Soil_Type))
+
+
+```
+
+
+
+```{r}
+Varieties = unique(data$Variety)
+predict_yield = as.data.frame(matrix(nrow=1000,ncol=length(Varieties)))
+names(predict_yield) = Varieties
+#Sufficientvariety
+for (i in SufDataVarieties){
+   target.data = SufVarietyData[SufVarietyData$Variety==i,]
+   target.data = subset(target.data, select = -Variety)
+   random.fit = randomForest(Variety_Yield~., data=target.data, 
+                             mtry=8,
+                             importance=TRUE)
+   random.fit
+   yhat.eva = predict(random.fit, newdata = evaluation_data)
+   predict_yield[,i] = yhat.eva
+}
+```
+```{r}
+#insufficientdata 
+InSufVarietyData$Variety = as.factor(InSufVarietyData$Variety)
+boost.fit.insuf <- gbm(Variety_Yield ~ . , data = InSufVarietyData, distribution = "gaussian", n.trees=50,interaction.depth=3,shrinkage=0.2,verbose=F)
+
+
+ 
+for (i in insufDataVarieties){
+   evaluation_data$Variety = rep(i,1000)
+   evaluation_data$Variety =factor(evaluation_data$Variety,levels = levels(InSufVarietyData$Variety))
+    yhat.eva = predict(boost.fit.insuf, newdata = evaluation_data,n.trees=50 )
+   predict_yield[,i] = yhat.eva
+}
+
+```
+```{r}
+#最大yield
+head(predict_yield)
+max(predict_yield)
+x=which(predict_yield==max(predict_yield))
+names(predict_yield)[103]
+predict_yield[,'V96']
+
+subset(data,data$Variety =='V96')
+```
+```{r}
+#最小yield
+
+min(predict_yield)
+x=which(predict_yield==min(predict_yield))
+length(x)
+names(predict_yield)[161]
+predict_yield[,'V154']
+
+subset(data,data$Variety =='V154')
+
+
+
+write.csv(predict_yield, file = "predict_yield.csv")
+
+
+```
+
+
